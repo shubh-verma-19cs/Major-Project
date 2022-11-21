@@ -124,7 +124,7 @@ def delete_user(email):
     return jsonify({"status": "Deleted"})
 
 @app.route('/addsensors', methods=['POST'])
-def create_user():
+def add_sensor():
     sensor_data = request.json
     # temp_password = user_data['password']
     # salt = bcrypt.gensalt(prefix=b"md5")
@@ -145,7 +145,7 @@ def create_user():
         return jsonify({"success": False}), 400
 
 @app.route('/getsensors', methods=['GET'])
-def getSensors():
+def get_sensors():
     try:
         all_sensors = []
         sensors = Sensor.query.all()
@@ -166,7 +166,7 @@ def getSensors():
         print(e)
         return jsonify({}), 400
 
-@app.route("/sensors/<int:pin>", methods=['PATCH'])
+@app.route("/editsensors/<int:pin>", methods=['POST'])
 def update_sensor(pin):
     sensor = Sensor.query.get(pin)
     sensor_name = request.json['sensor_name']
