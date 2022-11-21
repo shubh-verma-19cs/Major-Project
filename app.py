@@ -1,6 +1,7 @@
 # from random import random
 from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
+import bcrypt
 # from flask_cors import CORS
 
 app = Flask(__name__)
@@ -16,6 +17,7 @@ class User(db.Model):
     # id = db.Column(db.Integer, primary_key=True)
     user_name = db.Column(db.String(100), primary_key=True)
     user_email = db.Column(db.String(100), nullable = False)
+    user_password = db.Column(db.String(100), nullable = False)
     def __repr__(self):
         return "<User %r>" % self.user_name
 
@@ -23,13 +25,34 @@ class User(db.Model):
 def index():
     return jsonify({"message":"Flask website"})
 
+@app.route('/checkusers', methods=['POST'])
+def check_user():
+    user_data = request.json
+    # temp_password = user_data['user_password']
+    # salt = bcrypt.gensalt(prefix=b"md5")
+
+    user_email = user_data['user_email']
+    user_password = user_data['user_password']
+
+    u = db.session.query(User).where(User.user_name == user_email).first()
+
+    if u == None or u.user_password != user_password:
+        return jsonify({"success":False})
+
+    return jsonify({"success":True})
+
+
 # Create
-@app.route('/users', methods=['POST'])
+@app.route('/addusers', methods=['POST'])
 def create_user():
     user_data = request.json
+    # temp_password = user_data['user_password']
+    # salt = bcrypt.gensalt(prefix=b"md5")
+
     user_name = user_data['user_name']
     user_email = user_data['user_email']
-    user = User(user_name=user_name, user_email=user_email)
+    user_password = user_data['user_password']
+    user = User(user_name=user_name, user_email=user_email, user_password=user_password)
 
     db.session.add(user)
     db.session.commit()
@@ -67,8 +90,9 @@ def update_user(user_name):
         db.session.commit()
         return jsonify({"status": "Updated"})
 
+# Delete
 @app.route("/users/<string:user_name>", methods = ['DELETE'])
-def deete_user(user_name):
+def delete_user(user_name):
     user = User.query.get(user_name)
     db.session.delete(user)
     db.session.commit()
