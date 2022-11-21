@@ -121,6 +121,27 @@ def delete_user(email):
 
     return jsonify({"status": "Deleted"})
 
+@app.route('/addsensors', methods=['POST'])
+def create_user():
+    sensor_data = request.json
+    # temp_password = user_data['password']
+    # salt = bcrypt.gensalt(prefix=b"md5")
+    try:
+        sensor_name = sensor_data['sensor_name']
+        location = sensor_data['location']
+        pin = sensor_data['pin']
+        status = sensor_data['status']
+        print(sensor_name, location)
+        sensor = Sensor(sensor_name=sensor_name, location=location, pin=pin, status=status)
+        db.session.add(sensor)
+        db.session.commit()
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        print(e)
+        return jsonify({"success": False}), 400
+
 @app.route('/getsensors', methods=['GET'])
 def getSensors():
     try:
@@ -142,6 +163,21 @@ def getSensors():
     except Exception as e:
         print(e)
         return jsonify({}), 400
+
+@app.route("/sensors/<int:pin>", methods=['PATCH'])
+def update_sensor(pin):
+    sensor = Sensor.query.get(pin)
+    sensor_name = request.json['sensor_name']
+    location = request.json['location']
+
+    if sensor is None:
+        abort(404)
+    else:
+        sensor.sensor_name = sensor_name
+        sensor.location = location
+        db.session.add(sensor)
+        db.session.commit()
+        return jsonify({"status": "Updated"})
 
 
 if __name__ == '__main__':
