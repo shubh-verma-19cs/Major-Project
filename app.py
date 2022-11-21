@@ -3,7 +3,7 @@ from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 
 # import bcrypt
-# from flask_cors import CORS
+from flask_cors import CORS
 
 app = Flask(__name__)
 
@@ -12,7 +12,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 
-# CORS(app)
+CORS(app)
 #  CREATE TABLE "users" (email TEXT PRIMARY KEY NOT NULL, password TEXT NOT NULL, image TEXT, name TEXT);
 class User(db.Model):
     __tablename__ = 'users'
@@ -30,7 +30,7 @@ class Sensor(db.Model):
     sensor_name = db.Column(db.String(100), nullable=False)
     location = db.Column(db.String(100), nullable=False)
     pin = db.Column(db.Integer, primary_key=True)
-    status = db.Column(db.Integer, primary_key=True)
+    status = db.Column(db.Boolean)
 
     def __repr__(self):
         return "<Sensor %r>" % self.pin
@@ -123,19 +123,25 @@ def delete_user(email):
 
 @app.route('/getsensors', methods=['GET'])
 def getSensors():
-    all_sensors = []
-    sensors = Sensor.query.all()
-    for sensor in sensors:
-        results = {
-            "sensor_name": sensor.sensor_name,
-            "location": sensor.location,
-        }
-        all_sensors.append(results)
-    return jsonify({
-        "status": True,
-        "sensors": all_sensors,
-        "total_sensors": len(sensors),
-    })
+    try:
+        all_sensors = []
+        sensors = Sensor.query.all()
+        for sensor in sensors:
+            results = {
+                "sensor_name": sensor.sensor_name,
+                "location": sensor.location,
+                "pin": sensor.pin,
+                "status": sensor.status
+            }
+            all_sensors.append(results)
+        return jsonify({
+            "status": True,
+            "sensors": all_sensors,
+            "total_sensors": len(sensors),
+        })
+    except Exception as e:
+        print(e)
+        return jsonify({}), 400
 
 
 if __name__ == '__main__':
