@@ -101,12 +101,14 @@ def getUsers():
 @app.route("/users/<string:email>", methods=['PATCH'])
 def update_user(email):
     user = User.query.get(email)
-    email = request.json['email']
+    name = request.json['name']
+    image = request.json['image']
 
     if user is None:
         abort(404)
     else:
-        user.email = email
+        user.name = name
+        user.image = image
         db.session.add(user)
         db.session.commit()
         return jsonify({"status": "Updated"})
