@@ -6,58 +6,63 @@ import bcrypt
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://mqtt:postgres@localhost/mqtt'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://majorproject:majorproject@localhost/mqtt'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # CORS(app)
-
+#  CREATE TABLE "users" (email TEXT PRIMARY KEY NOT NULL, password TEXT NOT NULL, image TEXT, name TEXT);
 class User(db.Model):
     __tablename__ = 'users'
     # id = db.Column(db.Integer, primary_key=True)
-    user_name = db.Column(db.String(100), primary_key=True)
-    user_email = db.Column(db.String(100), nullable = False)
-    user_password = db.Column(db.String(100), nullable = False)
+    email = db.Column(db.String(100), primary_key=True)
+    password = db.Column(db.String(100), nullable = False)
+    image = db.Column(db.String(100), nullable = False)
+    name = db.Column(db.String(100), nullable = False)
     def __repr__(self):
-        return "<User %r>" % self.user_name
+        return "<User %r>" % self.email
 
 @app.route('/')
 def index():
     return jsonify({"message":"Flask website"})
 
-@app.route('/checkusers', methods=['POST'])
+@app.route('/login', methods=['POST'])
 def check_user():
     user_data = request.json
-    # temp_password = user_data['user_password']
+    # temp_password = user_data['password']
     # salt = bcrypt.gensalt(prefix=b"md5")
+    print(user_data)
+    email = user_data["email"]
+    password = user_data["password"]
 
-    user_email = user_data['user_email']
-    user_password = user_data['user_password']
-
-    u = db.session.query(User).where(User.user_name == user_email).first()
-
-    if u == None or u.user_password != user_password:
-        return jsonify({"success":False})
+    u = db.session.query(User).where(User.email == email).first()
+    print(u.password == password, u.email ,u.password, password)
+    if u == None or (not u.password == password):
+        return jsonify({"success":False}), 400
 
     return jsonify({"success":True})
 
 
 # Create
-@app.route('/addusers', methods=['POST'])
+@app.route('/signup', methods=['POST'])
 def create_user():
     user_data = request.json
-    # temp_password = user_data['user_password']
+    # temp_password = user_data['password']
     # salt = bcrypt.gensalt(prefix=b"md5")
+    try:
+        email = user_data['email']
+        password = user_data['password']
+        print(email,password)
+        user = User(email=email, password=password)
 
-    user_name = user_data['user_name']
-    user_email = user_data['user_email']
-    user_password = user_data['user_password']
-    user = User(user_name=user_name, user_email=user_email, user_password=user_password)
+        db.session.add(user)
+        db.session.commit()
 
-    db.session.add(user)
-    db.session.commit()
-
-    return jsonify({"success":True, "response":"USer added"})
+        return jsonify({"success":True})
+    
+    except Exception as e:
+        print(e)
+        return jsonify({"success":False}), 400
 
 #Read
 @app.route('/getusers', methods=['GET'])
@@ -66,8 +71,8 @@ def getUsers():
     users = User.query.all()
     for user in users:
         results = {
-            "user_name":user.user_name,
-            "user_email":user.user_email,
+            "name":user.name,
+            "email":user.email,
         }
         all_users.append(results)
     return jsonify({
@@ -77,27 +82,27 @@ def getUsers():
     })
 
 # Update
-@app.route("/users/<string:user_name>", methods = ['PATCH'])
-def update_user(user_name):
-    user = User.query.get(user_name)
-    user_email = request.json['user_email']
+@app.route("/users/<string:email>", methods = ['PATCH'])
+def update_user(email):
+    user = User.query.get(email)
+    email = request.json['email']
 
     if user is None:
         abort(404)
     else:
-        user.user_email = user_email
+        user.email = email
         db.session.add(user)
         db.session.commit()
         return jsonify({"status": "Updated"})
 
 # Delete
-@app.route("/users/<string:user_name>", methods = ['DELETE'])
-def delete_user(user_name):
-    user = User.query.get(user_name)
+@app.route("/users/<string:email>", methods = ['DELETE'])
+def delete_user(email):
+    user = User.query.get(email)
     db.session.delete(user)
     db.session.commit()
 
     return jsonify({"status": "Deleted"})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(port=5000,debug=True)
