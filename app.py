@@ -1,4 +1,5 @@
 # from random import random
+from crypt import methods
 from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 
@@ -36,6 +37,12 @@ class Sensor(db.Model):
     def __repr__(self):
         return "<Sensor %r>" % self.pin
 
+class Topic(db.Model):
+    __tablename__ = 'topics'
+    topic = db.Column(db.String(100), primary_key=True)
+
+    def __repr__(self):
+        return "<Topic %r>"% self.topic
 
 @app.route('/')
 def index():
@@ -50,6 +57,7 @@ def check_user():
     print(user_data)
     email = user_data["email"]
     password = user_data["password"]
+
 
     u = db.session.query(User).where(User.email == email).first()
     print(u.password == password, u.email, u.password, password)
@@ -68,8 +76,10 @@ def create_user():
     try:
         email = user_data['email']
         password = user_data['password']
+        image = "userimage.png"
+        name = user_data["email"]
         print(email, password)
-        user = User(email=email, password=password)
+        user = User(email=email, password=password, image=image, name=name)
         db.session.add(user)
         db.session.commit()
 
@@ -135,8 +145,11 @@ def add_sensor():
         pin = sensor_data['pin']
         status = sensor_data['status']
         print(sensor_name, location)
+        topic_name = location+"/"+sensor_name
+        topic = Topic(topic=topic_name)
         sensor = Sensor(sensor_name=sensor_name, location=location, pin=pin, status=status)
         db.session.add(sensor)
+        db.session.add(topic)
         db.session.commit()
 
         return jsonify({"success": True})
@@ -205,6 +218,24 @@ def update_sensor(pin):
         db.session.commit()
         return jsonify({"status": "Updated"})
 
+@app.route("/gettopics", methods=['GET'])
+def get_topics():
+    try:
+        all_topics = []
+        topics = Topic.query.all()
+        for topic in topics:
+            results = {
+                "topic_name": topic.topic,
+            }
+            all_topics.append(results)
+        return jsonify({
+            "status": True,
+            "topics": all_topics,
+            "total_topics": len(topics),
+        })
+    except Exception as e:
+        print(e)
+        return jsonify({}), 400
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
