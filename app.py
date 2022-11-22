@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 # import bcrypt
 from flask_cors import CORS
+from sqlalchemy import all_
 
 app = Flask(__name__)
 
@@ -177,8 +178,17 @@ def update_sensor_status():
         sensor.status = sensor_data.get("status")
         db.session.add(sensor)
         db.session.commit()
-        return jsonify({"success": True})
-
+        
+        all_sensors = []
+        sensors = Sensor.query.order_by(Sensor.pin).all()
+        for sensor in sensors:
+            results = {
+                "pin": sensor.pin,
+                "status": int(sensor.status)
+            }
+            all_sensors.append(results)
+        
+        return jsonify({"success": True, "sensors": all_sensors})
 
 @app.route("/editsensors/<int:pin>", methods=['POST'])
 def update_sensor(pin):
