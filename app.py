@@ -148,7 +148,7 @@ def add_sensor():
 def get_sensors():
     try:
         all_sensors = []
-        sensors = Sensor.query.all()
+        sensors = Sensor.query.order_by(Sensor.pin).all()
         for sensor in sensors:
             results = {
                 "sensor_name": sensor.sensor_name,
@@ -165,6 +165,20 @@ def get_sensors():
     except Exception as e:
         print(e)
         return jsonify({}), 400
+    
+@app.route("/updatesensorstatus", methods=['POST'])
+def update_sensor_status():
+    sensor_data = request.json
+    sensor = Sensor.query.get(sensor_data.get("pin"))
+
+    if sensor is None:
+        return jsonify({"success": False}), 400
+    else:
+        sensor.status = sensor_data.get("status")
+        db.session.add(sensor)
+        db.session.commit()
+        return jsonify({"success": True})
+
 
 @app.route("/editsensors/<int:pin>", methods=['POST'])
 def update_sensor(pin):
