@@ -1,11 +1,14 @@
 # from random import random
 from crypt import methods
+from datetime import datetime
 from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
 # import bcrypt
 from flask_cors import CORS
 from sqlalchemy import all_
+from sqlalchemy.schema import PrimaryKeyConstraint
 
 app = Flask(__name__)
 
@@ -33,6 +36,19 @@ class Sensor(db.Model):
     location = db.Column(db.String(100), nullable=False)
     pin = db.Column(db.Integer, primary_key=True)
     status = db.Column(db.Boolean)
+
+    def __repr__(self):
+        return "<Sensor %r>" % self.pin
+    
+    
+class SensorLog(db.Model):
+    __tablename__ = 'sensorlog'
+    __table_args__ = (
+        PrimaryKeyConstraint("pin","date", name='id'),
+    )
+    pin = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.Boolean, nullable=False)
+    date=db.Column(db.DateTime, nullable=False)
 
     def __repr__(self):
         return "<Sensor %r>" % self.pin
@@ -188,10 +204,21 @@ def update_sensor_status():
     if sensor is None:
         return jsonify({"success": False}), 400
     else:
-        sensor.status = sensor_data.get("status")
-        db.session.add(sensor)
-        db.session.commit()
-        
+        try:
+            status = 200
+            sensor.status = sensor_data.get("status")
+            db.session.add(sensor)
+            db.session.commit()
+            
+            sensor_log = SensorLog(status=sensor.status,pin=sensor.pin,date=datetime.now())
+            
+            db.session.add(sensor_log)
+            db.session.commit()
+            
+        except Exception as e:
+            print(e)
+            status = 400
+            
         all_sensors = []
         sensors = Sensor.query.order_by(Sensor.pin).all()
         for sensor in sensors:
@@ -200,8 +227,8 @@ def update_sensor_status():
                 "status": int(sensor.status)
             }
             all_sensors.append(results)
-        
-        return jsonify({"success": True, "sensors": all_sensors})
+
+        return jsonify({"success": True, "sensors": all_sensors}), status
 
 @app.route("/editsensors/<int:pin>", methods=['POST'])
 def update_sensor(pin):
