@@ -4,6 +4,9 @@ from datetime import datetime
 from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+# from flask_mqtt import Mqtt
+import paho.mqtt.client as mqtt
+import paho.mqtt.publish as publish
 
 # import bcrypt
 from flask_cors import CORS
@@ -14,10 +17,17 @@ app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://majorproject:majorproject@localhost/mqtt'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# app.config['MQTT_BROKER_URL'] = '0.0.0.0'
+# app.config['MQTT_BROKER_PORT'] = 1883
+# app.config['MQTT_USERNAME'] = ''
+# app.config['MQTT_PASSWORD'] = ''
+# app.config['MQTT_REFRESH_TIME'] = 5
 db = SQLAlchemy(app)
-
+# mqtt = Mqtt()
 
 CORS(app)
+
+
 #  CREATE TABLE "users" (email TEXT PRIMARY KEY NOT NULL, password TEXT NOT NULL, image TEXT, name TEXT);
 class User(db.Model):
     __tablename__ = 'users'
@@ -30,6 +40,7 @@ class User(db.Model):
     def __repr__(self):
         return "<User %r>" % self.email
 
+
 class Sensor(db.Model):
     __tablename__ = 'sensors'
     sensor_name = db.Column(db.String(100), nullable=False)
@@ -39,26 +50,32 @@ class Sensor(db.Model):
 
     def __repr__(self):
         return "<Sensor %r>" % self.pin
-    
-    
+
+
 class SensorLog(db.Model):
     __tablename__ = 'sensorlog'
     __table_args__ = (
-        PrimaryKeyConstraint("pin","date", name='id'),
+        PrimaryKeyConstraint("pin", "date", name='id'),
     )
     pin = db.Column(db.Integer, nullable=False)
     status = db.Column(db.Boolean, nullable=False)
-    date=db.Column(db.DateTime, nullable=False)
+    date = db.Column(db.DateTime, nullable=False)
 
     def __repr__(self):
         return "<Sensor %r>" % self.pin
+
 
 class Topic(db.Model):
     __tablename__ = 'topics'
     topic = db.Column(db.String(100), primary_key=True)
 
     def __repr__(self):
-        return "<Topic %r>"% self.topic
+        return "<Topic %r>" % self.topic
+
+
+with app.app_context():
+    db.create_all()
+
 
 @app.route('/')
 def index():
@@ -73,7 +90,6 @@ def check_user():
     print(user_data)
     email = user_data["email"]
     password = user_data["password"]
-
 
     u = db.session.query(User).where(User.email == email).first()
     print(u.password == password, u.email, u.password, password)
@@ -150,6 +166,7 @@ def delete_user(email):
 
     return jsonify({"status": "Deleted"})
 
+
 @app.route('/addsensors', methods=['POST'])
 def add_sensor():
     sensor_data = request.json
@@ -161,7 +178,11 @@ def add_sensor():
         pin = sensor_data['pin']
         status = sensor_data['status']
         print(sensor_name, location)
-        topic_name = location+"/"+sensor_name
+        topic_name = location + "/" + sensor_name
+        client.subscribe(topic_name)
+        publish.single(topic_name, bytes(0), retain=True, hostname="0.0.0.0", auth={'username':"admin-user", 'password':"admin-password"})
+        # mqtt.subscribe(topic_name)
+        # mqtt.publish(topic_name, bytes(0), retain=True)
         topic = Topic(topic=topic_name)
         sensor = Sensor(sensor_name=sensor_name, location=location, pin=pin, status=status)
         db.session.add(sensor)
@@ -173,6 +194,7 @@ def add_sensor():
     except Exception as e:
         print(e)
         return jsonify({"success": False}), 400
+
 
 @app.route('/getsensors', methods=['GET'])
 def get_sensors():
@@ -195,7 +217,8 @@ def get_sensors():
     except Exception as e:
         print(e)
         return jsonify({}), 400
-    
+
+
 @app.route("/updatesensorstatus", methods=['POST'])
 def update_sensor_status():
     sensor_data = request.json
@@ -207,18 +230,20 @@ def update_sensor_status():
         try:
             status = 200
             sensor.status = sensor_data.get("status")
+            # mqtt.publish(str(sensor.location+"/"+sensor.sensor_name),bytes(bool(sensor.status)), retain=True)
+            publish.single(str(sensor.location + "/" + sensor.sensor_name), bytes(bool(sensor.status)), retain=True, hostname="0.0.0.0", auth={'username':"admin-user", 'password':"admin-password"})
             db.session.add(sensor)
             db.session.commit()
-            
-            sensor_log = SensorLog(status=sensor.status,pin=sensor.pin,date=datetime.now())
-            
+
+            sensor_log = SensorLog(status=sensor.status, pin=sensor.pin, date=datetime.now())
+
             db.session.add(sensor_log)
             db.session.commit()
-            
+
         except Exception as e:
             print(e)
             status = 400
-            
+
         all_sensors = []
         sensors = Sensor.query.order_by(Sensor.pin).all()
         for sensor in sensors:
@@ -229,6 +254,7 @@ def update_sensor_status():
             all_sensors.append(results)
 
         return jsonify({"success": True, "sensors": all_sensors}), status
+
 
 @app.route("/editsensors/<int:pin>", methods=['POST'])
 def update_sensor(pin):
@@ -244,6 +270,7 @@ def update_sensor(pin):
         db.session.add(sensor)
         db.session.commit()
         return jsonify({"status": "Updated"})
+
 
 @app.route("/gettopics", methods=['GET'])
 def get_topics():
@@ -264,5 +291,16 @@ def get_topics():
         print(e)
         return jsonify({}), 400
 
+
+def on_connect(client, userdata, flags, rc):
+    print("Connected with result code " + str(rc))
+
+
 if __name__ == '__main__':
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.username_pw_set(username="admin-user", password="admin-password")
+    client.connect_async("0.0.0.0", 1883, 5)
+    client.loop_start()
     app.run(port=5000, debug=True)
+    # mqtt.init_app(app)
