@@ -1,12 +1,13 @@
 # from random import random
 from crypt import methods
+from cryptography.fernet import Fernet
 from datetime import datetime
 from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 # from flask_mqtt import Mqtt
-import paho.mqtt.client as mqtt
-import paho.mqtt.publish as publish
+# import paho.mqtt.client as mqtt
+# import paho.mqtt.publish as publish
 
 # import bcrypt
 from flask_cors import CORS
@@ -14,6 +15,9 @@ from sqlalchemy import all_
 from sqlalchemy.schema import PrimaryKeyConstraint
 
 app = Flask(__name__)
+key = b'denVg62wKWiBGvsT6NjFxht5iNEYnzMUHiQH8-4e0vw='
+cipher_suite = Fernet(key)
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://majorproject:majorproject@localhost/mqtt'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -87,16 +91,23 @@ def check_user():
     user_data = request.json
     # temp_password = user_data['password']
     # salt = bcrypt.gensalt(prefix=b"md5")
-    print(user_data)
-    email = user_data["email"]
-    password = user_data["password"]
+    try:
+        print(user_data)
+        email = user_data["email"]
+        password = user_data["password"]
+        
+        u = db.session.query(User).where(User.email == email).first()
+        cypher_text = cipher_suite.decrypt(u.password.encode()).decode()
+        
+        print(u.password == password, u.email, cypher_text)
+        if u == None or \
+            (not cypher_text == password):
+            return jsonify({"success": False}), 400
 
-    u = db.session.query(User).where(User.email == email).first()
-    print(u.password == password, u.email, u.password, password)
-    if u == None or (not u.password == password):
+        return jsonify({"success": True})
+    except Exception as e:
+        print(e)
         return jsonify({"success": False}), 400
-
-    return jsonify({"success": True})
 
 
 # Create
@@ -111,6 +122,8 @@ def create_user():
         image = "userimage.png"
         name = user_data["email"]
         print(email, password)
+        password = cipher_suite.encrypt(password.encode()).decode()
+        print(type(password),password)
         user = User(email=email, password=password, image=image, name=name)
         db.session.add(user)
         db.session.commit()
@@ -179,8 +192,8 @@ def add_sensor():
         status = sensor_data['status']
         print(sensor_name, location)
         topic_name = location + "/" + sensor_name
-        client.subscribe(topic_name)
-        publish.single(topic_name, bytes(0), retain=True, hostname="0.0.0.0", auth={'username':"admin-user", 'password':"admin-password"})
+        # client.subscribe(topic_name)
+        # publish.single(topic_name, bytes(0), retain=True, hostname="0.0.0.0", auth={'username':"admin-user", 'password':"admin-password"})
         # mqtt.subscribe(topic_name)
         # mqtt.publish(topic_name, bytes(0), retain=True)
         topic = Topic(topic=topic_name)
@@ -231,7 +244,7 @@ def update_sensor_status():
             status = 200
             sensor.status = sensor_data.get("status")
             # mqtt.publish(str(sensor.location+"/"+sensor.sensor_name),bytes(bool(sensor.status)), retain=True)
-            publish.single(str(sensor.location + "/" + sensor.sensor_name), bytes(bool(sensor.status)), retain=True, hostname="0.0.0.0", auth={'username':"admin-user", 'password':"admin-password"})
+            # publish.single(str(sensor.location + "/" + sensor.sensor_name), bytes(bool(sensor.status)), retain=True, hostname="0.0.0.0", auth={'username':"admin-user", 'password':"admin-password"})
             db.session.add(sensor)
             db.session.commit()
 
@@ -292,15 +305,15 @@ def get_topics():
         return jsonify({}), 400
 
 
-def on_connect(client, userdata, flags, rc):
-    print("Connected with result code " + str(rc))
+# def on_connect(client, userdata, flags, rc):
+    # print("Connected with result code " + str(rc))
 
 
 if __name__ == '__main__':
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.username_pw_set(username="admin-user", password="admin-password")
-    client.connect_async("0.0.0.0", 1883, 5)
-    client.loop_start()
+    # client = mqtt.Client()
+    # client.on_connect = on_connect
+    # client.username_pw_set(username="admin-user", password="admin-password")
+    # client.connect_async("0.0.0.0", 1883, 5)
+    # client.loop_start()
     app.run(port=5000, debug=True)
     # mqtt.init_app(app)
